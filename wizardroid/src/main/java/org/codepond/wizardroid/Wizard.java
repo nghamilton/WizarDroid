@@ -12,6 +12,7 @@ import android.view.ViewGroup;
 import org.codepond.wizardroid.infrastructure.Bus;
 import org.codepond.wizardroid.infrastructure.Disposable;
 import org.codepond.wizardroid.infrastructure.Subscriber;
+import org.codepond.wizardroid.infrastructure.events.GoNextEvent;
 import org.codepond.wizardroid.infrastructure.events.StepCompletedEvent;
 import org.codepond.wizardroid.persistence.ContextManager;
 
@@ -49,6 +50,7 @@ public class Wizard implements Disposable, Subscriber {
     private int backStackEntryCount;
 	private WizardStep mPreviousStep;
 	private int mPreviousPosition;
+    private FragmentActivity mActivity;
 
 	/**
      * Constructor for Wizard
@@ -60,91 +62,68 @@ public class Wizard implements Disposable, Subscriber {
 	public Wizard(final WizardFlow wizardFlow,
                   final ContextManager contextManager,
                   final WizardCallbacks callbacks,
-                  final FragmentActivity activity) {
+                  final FragmentActivity activity)
+
+    {
 		this.wizardFlow = wizardFlow;
         this.contextManager = contextManager;
         this.callbacks = callbacks;
         this.mPager = (ViewPager) activity.findViewById(R.id.step_container);
         this.mFragmentManager = activity.getSupportFragmentManager();
+        this.mActivity = activity;
 
         if (mPager == null) {
             throw new RuntimeException("Cannot initialize Wizard. View with ID: step_container not found!" +
                     " The hosting Activity/Fragment must have a ViewPager in its layout with ID: step_container");
         }
 
+        Bus.getInstance(mActivity.getClass()).register(this, StepCompletedEvent.class);
+        Bus.getInstance(mActivity.getClass()).register(this, GoNextEvent.class);
+
         mPager.setAdapter(new WizardPagerAdapter(activity.getSupportFragmentManager()));
 
-        backStackEntryCount = mFragmentManager.getBackStackEntryCount();
-        mFragmentManager.addOnBackStackChangedListener(new OnBackStackChangedListener() {
-            @Override
-            public void onBackStackChanged() {
-                backStackEntryCount = mFragmentManager.getBackStackEntryCount();
-
-                //onBackPressed
-                if (backStackEntryCount < getCurrentStepPosition()){
-                    mPager.setCurrentItem(getCurrentStepPosition() - 1);
-                }
-            }
-        });
-
-        //Implementation of OnPageChangeListener to handle wizard control via user finger slides
         mPager.setOnPageChangeListener(new ViewPager.OnPageChangeListener() {
-			private int mPreviousState = ViewPager.SCROLL_STATE_IDLE;
-
-			@Override
+            @Override
             public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
             }
 
             @Override
             public void onPageSelected(int position) {
-                if (backStackEntryCount < position){
-                    mFragmentManager.beginTransaction().addToBackStack(null).commit();
-                }
-                else if (backStackEntryCount > position){
-                    mFragmentManager.popBackStack();
-                }
             }
 
             @Override
             public void onPageScrollStateChanged(int state) {
-				if (DEBUG) Log.v(TAG, "onPageScrollStateChanged " + state);
-				switch (state) {
-					case ViewPager.SCROLL_STATE_DRAGGING:
-						mPreviousPosition = getCurrentStepPosition();
-						mPreviousStep = getCurrentStep();
-						break;
-					case ViewPager.SCROLL_STATE_SETTLING:
-						callbacks.onStepChanged();
-						break;
-					case ViewPager.SCROLL_STATE_IDLE:
-						if (mPreviousState == ViewPager.SCROLL_STATE_SETTLING) {
-							if (getCurrentStepPosition() > mPreviousPosition) {
-								if (DEBUG) Log.v(TAG, "goNext");
-								processStepBeforeChange(mPreviousStep, mPreviousPosition);
-								mPager.getAdapter().notifyDataSetChanged();
-							}
-							else {
-								if (DEBUG) Log.v(TAG, "goBack");
-								mPreviousStep.onExit(WizardStep.EXIT_PREVIOUS);
-							}
-						}
-						break;
-				}
-				mPreviousState = state;
+                if (DEBUG) Log.v(TAG, "onPageScrollStateChanged " + state);
+                switch (state) {
+                    case ViewPager.SCROLL_STATE_DRAGGING:
+                        break;
+                    case ViewPager.SCROLL_STATE_SETTLING:
+                        callbacks.onStepChanged();
+                        break;
+                    case ViewPager.SCROLL_STATE_IDLE:
+                        mPager.getAdapter().notifyDataSetChanged();
+                        break;
+                }
             }
         });
-        Bus.getInstance().register(this, StepCompletedEvent.class);
-	}
+    }
 
     @Override
     public void dispose() {
-        Bus.getInstance().unregister(this);
+        Bus.getInstance(mActivity.getClass()).unregister(this);
     }
 
     @Override
     public void receive(Object event) {
-        StepCompletedEvent stepCompletedEvent = (StepCompletedEvent) event;
-        onStepCompleted(stepCompletedEvent.isStepCompleted(), stepCompletedEvent.getStep());
+        if(event.getClass().equals(StepCompletedEvent.class))
+        {
+            StepCompletedEvent stepCompletedEvent = (StepCompletedEvent) event;
+            onStepCompleted(stepCompletedEvent.isStepCompleted(), stepCompletedEvent.getStep());
+        }
+        else if (event.getClass().equals(GoNextEvent.class))
+        {
+            goNext();
+        }
     }
 
     private void onStepCompleted(boolean isComplete, WizardStep step) {
@@ -172,8 +151,8 @@ public class Wizard implements Disposable, Subscriber {
 	 */
 	public void goNext() {
 		if (canGoNext()) {
+            processStepBeforeChange(getCurrentStep(), getCurrentStepPosition());
 			if (isLastStep()) {
-				processStepBeforeChange(getCurrentStep(), getCurrentStepPosition());
 				callbacks.onWizardComplete();
 			}
 			else {
@@ -189,10 +168,15 @@ public class Wizard implements Disposable, Subscriber {
 	 */
 	public void goBack() {
 		if (!isFirstStep()) {
-			mPreviousPosition = getCurrentStepPosition();
-			mPreviousStep = getCurrentStep();
-			setCurrentStep(mPager.getCurrentItem() - 1);
+            mPreviousPosition = getCurrentStepPosition();
+            mPreviousStep = getCurrentStep();
+            setCurrentStep(mPager.getCurrentItem() - 1);
 		}
+        else
+        {
+            //first step, so we exit
+            callbacks.onWizardComplete();
+        }
 	}
 	
 	/**
@@ -233,6 +217,15 @@ public class Wizard implements Disposable, Subscriber {
 	 */
 	public boolean isFirstStep() {
 		return mPager.getCurrentItem() == 0;
+	}
+
+
+	public WizardStep getStep(int i) {
+        return (WizardStep) ((WizardPagerAdapter)mPager.getAdapter()).getItem(i);
+    }
+
+	public WizardStep getFirstStep() {
+		return getStep(0);
 	}
 
     /**

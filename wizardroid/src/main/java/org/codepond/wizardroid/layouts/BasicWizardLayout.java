@@ -42,7 +42,16 @@ public abstract class BasicWizardLayout extends WizardFragment implements View.O
 		super(contextManager);
 	}
 
-	/**
+
+    public Button getPreviousButton() {
+        return previousButton;
+    }
+
+    public Button getNextButton() {
+        return nextButton;
+    }
+
+    /**
      * Setting the layout for this basic wizard layout and hooking up wizard controls to their
      * OnClickListeners.
      */

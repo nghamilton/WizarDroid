@@ -47,21 +47,21 @@ public abstract class WizardStep extends Fragment {
      */
 	@Deprecated
     public final void notifyCompleted(boolean isStepCompleted) {
-        Bus.getInstance().post(new StepCompletedEvent(isStepCompleted, this));
+        Bus.getInstance(getActivity().getClass()).post(new StepCompletedEvent(isStepCompleted, this));
     }
 
 	/**
 	 * Notify the wizard that this step is completed
 	 */
 	public final void notifyCompleted() {
-		Bus.getInstance().post(new StepCompletedEvent(true, this));
+		Bus.getInstance(getActivity().getClass()).post(new StepCompletedEvent(true, this));
 	}
 
 	/**
 	 * Notify the wizard that this step is incomplete
 	 */
 	public final void notifyIncomplete() {
-		Bus.getInstance().post(new StepCompletedEvent(false, this));
+		Bus.getInstance(getActivity().getClass()).post(new StepCompletedEvent(false, this));
 	}
 
     /**

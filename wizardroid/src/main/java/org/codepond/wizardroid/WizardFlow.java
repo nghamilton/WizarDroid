@@ -20,7 +20,7 @@ public class WizardFlow {
 
         private Class<? extends WizardStep> stepClass;
 
-        private StepMetaData(boolean isRequired, Class<? extends WizardStep> stepClass) {
+        public StepMetaData(boolean isRequired, Class<? extends WizardStep> stepClass) {
             this.required = isRequired;
             this.stepClass = stepClass;
         }
@@ -45,10 +45,13 @@ public class WizardFlow {
 
     private final List<StepMetaData> steps;
 
-	private WizardFlow(List<StepMetaData> steps) {
+	public WizardFlow(List<StepMetaData> steps) {
 		this.steps = steps;
 	}
 
+    public List<StepMetaData> getStepMetaData() {
+        return steps;
+    }
     /**
 	 * Get the list of wizard flow steps which is cut off at the last step which is required and incomplete
      * and the first step which doesn't allow to go back and is incomplete.
@@ -152,7 +155,11 @@ public class WizardFlow {
             return this;
         }
 
-		/**
+        public List<StepMetaData> getWizardSteps() {
+            return wizardSteps;
+        }
+
+        	 /**
 		 * Create a new {@link WizardFlow} object.
 		 * @return WizardFlow Instance of WizardFlow
 		 */
