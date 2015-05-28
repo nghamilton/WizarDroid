@@ -2,8 +2,7 @@ package org.codepond.wizardroid.extended;
 
 import android.view.View;
 
-import com.difarent.mobile.R;
-
+import org.codepond.wizardroid.R;
 import org.codepond.wizardroid.layouts.BasicWizardLayout;
 
 public abstract class ExtendedWizardLayout extends BasicWizardLayout {
